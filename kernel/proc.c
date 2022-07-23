@@ -275,6 +275,9 @@ fork(void)
   }
   np->sz = p->sz;
 
+  // copy the trace mask from the parent to the child process
+  np->mask = p->mask;
+
   np->parent = p;
 
   // copy saved user registers.
@@ -692,4 +695,20 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// count the num of proc whose state isn't UNUSED
+int 
+count_nproc(void)
+{
+  struct proc *p;
+  int num = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    if(p->state != UNUSED){
+      num ++;
+    }
+  }
+
+  return num;
 }
