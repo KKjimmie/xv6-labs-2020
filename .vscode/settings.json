@@ -3,6 +3,7 @@
   "C_Cpp.errorSquiggles": "Disabled",
   "files.associations": {
     "memlayout.h": "c",
-    "sysinfo.h": "c"
+    "sysinfo.h": "c",
+    "riscv.h": "c"
   }
 }
