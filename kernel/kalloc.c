@@ -80,3 +80,33 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+static char *fix_before[3] = {"..", ".. ..", ".. .. .."};
+
+// print pagetable and its mappings
+void
+vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", (uint64)pagetable);
+  int l = 0;
+  vmprint_child(pagetable, l);
+}
+
+void
+vmprint_child(pagetable_t pagetable, int l){
+  if(l > 2){
+    return;
+  }
+
+  for(int i = 0; i < 512; i ++){
+    pte_t pte = pagetable[i];
+    // only print PTEs that are valid
+    if(pte & PTE_V){
+      uint64 child = PTE2PA(pte);
+      printf("%s%d: pte %p pa %p\n", 
+        fix_before[l], i, (uint64)pte, child);
+      vmprint_child((pagetable_t)child, l+1);
+    }
+  }
+
+}
