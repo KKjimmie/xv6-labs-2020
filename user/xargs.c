@@ -53,7 +53,7 @@ readLine(char **args, int i)
 		while((k < j) && (buf[k] != ' ')){
 			k ++;
 		}
-		// ????
+		// end
 		buf[k++] = 0;
 		copy(&args[i], buf + l);
 		i ++;
