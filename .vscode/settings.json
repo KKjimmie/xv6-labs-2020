@@ -1,0 +1,13 @@
+{
+  "makefile.extensionOutputFolder": "./.vscode",
+  "C_Cpp.errorSquiggles": "Disabled",
+  "files.associations": {
+    "memlayout.h": "c",
+    "sysinfo.h": "c",
+    "riscv.h": "c",
+    "defs.h": "c",
+    "fs.h": "c",
+    "spinlock.h": "c",
+    "proc.h": "c"
+  }
+}

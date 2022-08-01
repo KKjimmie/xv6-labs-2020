@@ -1,0 +1,21 @@
+1. a2-7 hold function argements. 
+  a2 holds 13
+2. Because the complier inline function, "main" didn't call function "f" and 
+  function "g". Insead, it calculated the result and puted into register a2.
+3. 0x630
+4. 0x38
+5. output: He110 World
+  57616 = 0xe110, 
+  0x00646c72:( little-endian)
+    72 : r
+    6c : l 
+    64 : d 
+    00 : end of string 
+
+  If the RISC-V were instead big-endian,
+  i should be 0x726c6400.
+  it doesn't need to change 57616.
+
+6. 2 argumemts needed but only 1 given.
+  the number printed after "y=" depends on what is in register a2.
+

@@ -77,8 +77,25 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    if(p->alarm_interval != 0){
+      p->ticks_count += 1;
+      // when a process's alarm interval expires,
+      //  the user process executes the handler function
+      if(p->ticks_count == p->alarm_interval){
+        // allocate a trapframecopy page
+        if((p->trapframecopy = (struct trapframe *)kalloc()) == 0){
+          exit(-1);
+        }
+        // copy trapframe
+        memmove((void*)p->trapframecopy, (void*)p->trapframe, sizeof(struct trapframe));
+        // epc point to the handler function
+        p->trapframe->epc = (uint64)p->alarm_handler;
+      }
+    }
+
     yield();
+  }
 
   usertrapret();
 }

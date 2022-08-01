@@ -121,6 +121,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -131,4 +132,23 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace(void)
+{
+  uint64 fp = 0;
+  fp = r_fp();
+  // // top < floor
+  // uint64 top = PGROUNDDOWN(fp);
+  // uint64 floor = PGROUNDUP(fp);
+  printf("backtrace:\n");
+  // check whether a page was allocated for fp
+  while(PGROUNDUP(fp) - PGROUNDDOWN(fp) == PGSIZE){
+    // get return address
+    uint64 ret_addr = *(uint64 *)(fp-8);
+    printf("%p\n", ret_addr);
+    // get saved frame pointer to backtrace
+    fp = *(uint64 *)(fp-16);
+  }
 }
