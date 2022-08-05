@@ -1,0 +1,10 @@
+{
+  "makefile.extensionOutputFolder": "./.vscode",
+  "files.associations": {
+    "riscv.h": "c",
+    "proc.h": "c",
+    "user.h": "c",
+    "fs.h": "c"
+  },
+  "C_Cpp.errorSquiggles": "Disabled"
+}

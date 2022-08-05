@@ -67,6 +67,27 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 13 || r_scause() == 15){
+    // get virtual address which causes page fault
+    uint64 va = r_stval();
+    // printf("page fault: %p\n", va);
+    
+    // a new page will only be allocated if the following 
+    // conditions are met
+    if(PGROUNDUP(p->trapframe->sp) <= va && va < p->sz){
+      char *mem = kalloc();
+      if(mem == 0){
+        p->killed = 1;
+      } else {
+        memset((void*)mem, 0, PGSIZE);
+        if(mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+          kfree(mem);
+          p->killed = 1;
+        }
+      }
+    } else {
+      p->killed = 1;
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
