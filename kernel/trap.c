@@ -5,6 +5,11 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "fcntl.h"
+#include "memlayout.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -65,9 +70,54 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } else if (r_scause() == 13 || r_scause() == 15){
+    uint64 va = r_stval();
+    if(PGROUNDUP(p->trapframe->sp) <= va && va < p->sz){
+      int pte_flags = PTE_U;
+      struct vma *tmp_vma = 0;
+      char *mem;
+      int i;
+      //search for vma
+      for(i = 0; i < NVMA; i ++){
+        if(p->vma[i].used && va >= p->vma[i].addr && 
+            va < p->vma[i].addr + p->vma[i].length){
+          tmp_vma = &p->vma[i];    
+          break;
+        }
+      }
+      if(tmp_vma != 0){
+        // set pte_flags
+        if(tmp_vma->prot & PROT_READ) pte_flags |= PTE_R;
+        if(tmp_vma->prot & PROT_EXEC) pte_flags |= PTE_X;
+        if(tmp_vma->prot & PROT_WRITE) pte_flags |= PTE_D | PTE_W;
+
+        if((mem = kalloc()) == 0){
+          goto err;
+        }
+        memset((void*)mem, 0, PGSIZE);
+        //read data from file
+        int offset =PGROUNDDOWN(va - tmp_vma->addr) + tmp_vma->offset;
+        ilock(tmp_vma->file->ip);
+        if(readi(tmp_vma->file->ip, 0, (uint64)mem, offset, PGSIZE)<0){
+          iunlock(tmp_vma->file->ip);
+          kfree(mem);
+          goto err;
+        }
+        iunlock(tmp_vma->file->ip);
+        
+        // map
+        if(mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, pte_flags) != 0){
+          kfree(mem);
+          goto err;
+        }
+      }
+    } else {
+      goto err;
+    }
+  }else if((which_dev = devintr()) != 0){
     // ok
   } else {
+err:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;

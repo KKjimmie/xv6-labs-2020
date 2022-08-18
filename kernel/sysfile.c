@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -484,3 +485,126 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  int length, prot, flags, fd, offset;
+  struct file *f;
+  struct proc *p;
+  uint64 err = 0xffffffffffffffff;
+  if(argaddr(0, &addr)<0 || argint(1, &length)<0 || argint(2, &prot)<0 ||
+    argint(3, &flags)<0 || argfd(4, &fd, &f)<0 || argint(5, &offset)<0){
+      return err;
+    }
+  
+  p = myproc();
+
+  // Check parameter validity
+  if(addr != 0){
+    return err;
+  }
+
+  if(length < 0 || p->sz + length > TRAPFRAME){
+    return err;
+  }
+
+  if(!(flags == MAP_PRIVATE || flags == MAP_SHARED)){
+    return err;
+  }
+
+  if(flags == MAP_SHARED && f->writable == 0 && (prot & PROT_WRITE)){
+    return err;
+  }
+
+  if(offset < 0){
+    return err;
+  }
+  // mapped size = n*4096
+  length = PGROUNDUP(length);
+
+  for(int i = 0; i < NVMA; i ++){
+    if(p->vma[i].used){
+      continue;
+    }
+    p->vma[i].used = 1;
+    p->vma[i].addr = p->sz;
+    p->vma[i].length = length;
+    p->vma[i].flags = flags;
+    p->vma[i].prot = prot;
+    p->vma[i].fd = fd;
+    p->vma[i].file = f;
+    p->vma[i].offset = offset;
+
+    // increase ref cnt
+    filedup(f);
+    p->sz += length;
+    return p->vma[i].addr;
+  }
+  return err;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+  struct proc *p;
+  int i;
+  struct vma *tmp_vma = 0;
+  if(argaddr(0, &addr)<0 || argint(1, &length)<0){
+    return -1;
+  }
+
+  if(length < 0){
+    return -1;
+  } else if(length == 0){
+    return 0;
+  } 
+
+  p = myproc();
+
+  for(i = 0; i < NVMA; i ++){
+    if(p->vma[i].used && addr >= p->vma[i].addr && 
+      addr + length <= p->vma[i].addr + p->vma[i].length){
+        tmp_vma = &p->vma[i];
+        break;
+    }
+  }
+  if(tmp_vma == 0){
+    return -1;
+  }
+
+  // write back to file
+  if((tmp_vma->flags == MAP_SHARED) && (tmp_vma->prot & PROT_WRITE)){
+    uint64 va;
+    pte_t *pte;
+    for(va = addr; va < addr + length; va += PGSIZE){
+      pte = walk(p->pagetable, va, 0);
+      if((*pte & PTE_D) == 0){
+        continue;
+      }
+      filewrite(tmp_vma->file, va, PGSIZE);
+    }
+  }
+
+  uvmunmap(p->pagetable, addr, length/PGSIZE +1, 1);
+
+  // update vma
+  if(addr == tmp_vma->addr && length == tmp_vma->length){
+    fileclose(tmp_vma->file);
+    tmp_vma->used = 0;
+  }else if(addr == tmp_vma->addr){
+    tmp_vma->addr += length;
+    tmp_vma->offset += length;
+    tmp_vma->length -= length;
+  }else if(addr + length == tmp_vma->addr + tmp_vma->length){
+    tmp_vma->length -= length;
+  }else {
+    return -1;
+  }
+
+  return 0;
+}
+

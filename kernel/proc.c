@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -133,6 +134,8 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  memset(&p->vma, 0, sizeof(p->vma));
 
   return p;
 }
@@ -296,6 +299,14 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  // copy vma
+  for(i = 0; i < NVMA; i ++){
+    if(p->vma[i].used){
+      memmove(&np->vma[i], &p->vma[i], sizeof(p->vma[i]));
+      filedup(p->vma[i].file);
+    }
+  }
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -350,6 +361,26 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+
+  // unmap the process's mapped regions
+  uint64 va;
+  pte_t *pte;
+  for(int i = 0; i < NVMA; i ++){
+    if(p->vma[i].used){
+      if(p->vma[i].flags == MAP_SHARED && (p->vma[i].prot & PROT_WRITE)){
+        for(va = p->vma[i].addr; va < p->vma[i].addr + p->vma[i].length; va += PGSIZE){
+          pte = walk(p->pagetable, va, 0);
+          if(*pte == 0 || (*pte & PTE_D) == 0){
+            continue;
+          }
+          filewrite(p->vma[i].file, va, PGSIZE);
+        }
+      }
+      fileclose(p->vma[i].file);
+      uvmunmap(p->pagetable, p->vma[i].addr, p->vma[i].length/PGSIZE, 1);
+      p->vma[i].used = 0;
     }
   }
 
