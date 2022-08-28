@@ -4,86 +4,47 @@
 #include "kernel/fs.h"
 #include "kernel/param.h"
 
-void
-copy(char **p1, char *p2)
-{
-	*p1 = malloc(strlen(p2)+1);
-	strcpy(*p1, p2);
-}
-
-// read arg from stdin
-// i is the beginning index
-int
-readLine(char **args, int i)
-{
-	char buf[1024];
-	int j = 0;
-	// read a line
-	while(read(0, buf + j, 1)){
-		if(buf[j] == '\n'){
-			buf[j] = 0;
-			break;
-		}
-		j ++;
-
-		if(j == 1024){
-			fprintf(2, "Parameters are too long!\n");
-			exit(1);
-		}
-	}
-
-	// have nothing to read
-	if(j == 0){
-		return -1;
-	}
-
-	// Divided by spaces
-	int k = 0;
-	while(k < j){
-		if(i > MAXARG){
-			fprintf(2, "too much parameters!\n");
-			exit(1);
-		}
-		while((k < j) && (buf[k] ==' ')){
-			k ++;
-		}
-
-		// starting index
-		int l = k;
-		while((k < j) && (buf[k] != ' ')){
-			k ++;
-		}
-		// end
-		buf[k++] = 0;
-		copy(&args[i], buf + l);
-		i ++;
-	}
-	return i;
-}
-
 int
 main(int argc, char *argv[])
 {
-	if(argc < 2){
-		fprintf(2, "require more args");
-		exit(1);
-	} else {
-		char *args[MAXARG];
-		for(int i = 1; i < argc; i ++){
-			copy(&args[i-1], argv[i]);
-		}
+	char buf[512];
+	char *args[MAXARG];
+	char c;
+	char *p;
+	int n;
 
-		int end;
-		while((end = readLine(args, argc - 1)!= -1)){
-			argv[end] = 0;
-			if(fork() == 0){
-				exec(args[0], args);
-				exit(1);
-			} else {
-				wait(0);
-			}
-		}
-		exit(0);
+	if(argc < 2){
+		fprintf(2, "require more paremeter.\\n");
+		exit(1);
 	}
 
+	for(int i = 1; i < argc; i ++){
+		args[i-1] = argv[i];
+	}
+
+	while(1){
+		p = buf;
+		// read line
+		while((n = read(0, &c, 1)) && c != '\n'){
+			*p = c;
+			p ++;
+		}
+
+		// end
+		*p = '\0';
+		if(p != buf){
+			args[argc -1] = buf;
+			if (fork() == 0){
+				exec(argv[1], args);
+				exit(0);
+			}
+			wait(0);
+		}
+		if (n == 0) break;
+		if (n < 0){
+			fprintf(2, "read error.\\n");
+			exit(1);
+		}
+	}
+	exit(0);
 }
